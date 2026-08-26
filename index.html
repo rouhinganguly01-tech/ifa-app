@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- NATIVE APP VIEWPORT LOCK: Prevents auto-zooming and scales correctly -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IFA Operations Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#7a1c1c">
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+    <div class="container" id="app">
+        <!-- Auth Screen -->
+        <div id="auth-screen">
+            <div class="logo-container">
+                <img src="ifa-logo.png" alt="IFA Logo" class="app-logo">
+            </div>
+            <h1>IFA Operations</h1>
+            <p class="subtitle">Internal Staff & Management Portal</p>
+            
+            <div id="login-form">
+                <h3>Staff Login</h3>
+                <input type="text" id="login-phone" placeholder="Mobile Number">
+                <input type="password" id="login-pass" placeholder="Password">
+                <button onclick="handleLogin()">Login to Portal</button>
+                <p class="switch-text">New staff member? <a href="#" onclick="toggleAuth(true)">Register here</a></p>
+            </div>
+
+            <div id="register-form" class="hidden">
+                <h3>Staff Registration</h3>
+                <input type="text" id="reg-name" placeholder="Full Name">
+                <input type="text" id="reg-phone" placeholder="Mobile Number">
+                <input type="password" id="reg-pass" placeholder="Create Password">
+                <select id="reg-dept">
+                    <option value="Accounts">Accounts</option>
+                    <option value="Refereeing">Refereeing</option>
+                    <option value="League Operations">League Operations</option>
+                    <option value="Administration">Administration</option>
+                    <option value="IFA Staff">IFA Staff</option>
+                </select>
+                <button onclick="handleRegister()">Submit for Admin Approval</button>
+                <p class="switch-text">Already have an account? <a href="#" onclick="toggleAuth(false)">Login here</a></p>
+            </div>
+        </div>
+
+        <!-- Waiting Room Screen -->
+        <div id="waiting-screen" class="hidden">
+            <div class="logo-container">
+                <img src="ifa-logo.png" alt="IFA Logo" class="app-logo">
+            </div>
+            <h2>Registration Pending</h2>
+            <p class="waiting-text">Your profile has been submitted successfully. Please wait for Admin approval.</p>
+            <button class="danger-btn" onclick="logout()">Back to Login</button>
+        </div>
+
+        <!-- Dashboard Screen -->
+        <div id="dashboard-screen" class="hidden">
+            <div class="header-flex" style="flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 12px; flex-grow: 1;">
+                    <img src="ifa-logo.png" alt="IFA Logo" style="width: 40px; height: 40px; object-fit: contain;">
+                    <div>
+                        <h2 id="welcome-title" style="text-align: left; margin: 0; font-size: 18px;">Dashboard</h2>
+                    </div>
+                </div>
+                
+                <!-- NAVIGATION MENU -->
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+                    <button id="task-alloc-btn" class="hidden" onclick="toggleSection('task-allocation-section')" style="background: var(--ifa-dark); color: #fff; width: auto; padding: 8px 12px; font-size: 12px; margin: 0;">📝 Assign Task</button>
+                    
+                    <button id="staff-mgmt-btn" class="hidden" onclick="toggleSection('staff-mgmt-section')" style="background: var(--ifa-gold); color: #333; width: auto; padding: 8px 12px; font-size: 12px; margin: 0; position: relative;">
+                        👥 Staff Mgmt
+                        <span id="pending-badge" class="badge hidden">0</span>
+                    </button>
+                    
+                    <button id="settings-btn" onclick="toggleSection('settings-section')" style="background: #7f8c8d; color: #fff; width: auto; padding: 8px 12px; font-size: 12px; margin: 0;">⚙️ Settings</button>
+                    
+                    <button class="logout-top" onclick="logout()" style="margin: 0; padding: 8px 12px;">Logout</button>
+                </div>
+            </div>
+
+            <!-- 1. HIDDEN TASK ALLOCATION SECTION -->
+            <div id="task-allocation-section" class="hidden admin-panel" style="position: relative; background: #f4f6f9; border-color: #d1d8e0;">
+                <button onclick="toggleSection('task-allocation-section')" style="position: absolute; top: 15px; right: 15px; width: auto; padding: 5px 10px; background: #999; font-size: 12px;">Close ❌</button>
+                <h3 style="margin-top: 0; color: var(--ifa-dark);">Allocate New Task</h3>
+                <input type="text" id="task-topic" placeholder="Short Topic (e.g., Referee Roster)">
+                <input type="text" id="task-title" placeholder="Detailed Task Description">
+                <select id="task-assignee"></select>
+                <button onclick="createTask()" style="background: var(--ifa-dark);">Assign Task</button>
+            </div>
+
+            <!-- 2. EDIT TASK MODAL -->
+            <div id="edit-task-modal" class="hidden admin-panel" style="background: #fffdf5; border-color: var(--ifa-gold);">
+                <h3 style="margin-top: 0; color: #856404;">✏️ Edit Task</h3>
+                <input type="hidden" id="edit-task-id">
+                <input type="text" id="edit-task-topic" placeholder="Update Topic">
+                <input type="text" id="edit-task-title" placeholder="Update Detailed Description">
+                <select id="edit-task-assignee"></select>
+                <button onclick="saveEditTask()" style="background: var(--ifa-gold); color: #333;">Save Changes</button>
+                <button onclick="toggleSection('edit-task-modal')" style="background: #6c757d; margin-top: 5px;">Cancel</button>
+            </div>
+
+            <!-- 3. STAFF MANAGEMENT SECTION -->
+            <div id="staff-mgmt-section" class="hidden admin-panel" style="position: relative;">
+                <button onclick="toggleSection('staff-mgmt-section')" style="position: absolute; top: 15px; right: 15px; width: auto; padding: 5px 10px; background: #999; font-size: 12px;">Close ❌</button>
+                <h3 style="margin-top: 0; color: var(--ifa-maroon);">Staff Management</h3>
+                <div style="background: #fff; padding: 15px; border-radius: 6px; border-left: 4px solid var(--ifa-maroon); box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <h5 style="margin-bottom: 5px; color: #555;">Pending Approvals</h5>
+                    <div id="pending-list" style="margin-bottom: 15px;"></div>
+                    <hr class="divider" style="margin: 10px 0;">
+                    <h5 style="margin-bottom: 5px; color: #555;">Active Staff (Remove)</h5>
+                    <div id="active-list"></div>
+                </div>
+            </div>
+
+            <!-- 4. ACCOUNT SETTINGS -->
+            <div id="settings-section" class="hidden admin-panel" style="position: relative; background: #eaecee; border-color: #bdc3c7;">
+                <button onclick="toggleSection('settings-section')" style="position: absolute; top: 15px; right: 15px; width: auto; padding: 5px 10px; background: #999; font-size: 12px;">Close ❌</button>
+                <h3 style="margin-top: 0; color: var(--ifa-dark);">Account Settings</h3>
+                <div style="background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <h4 style="margin-top: 0; color: var(--ifa-dark);">Change Password</h4>
+                    <input type="password" id="current-pass" placeholder="Current Password">
+                    <input type="password" id="new-pass" placeholder="New Password">
+                    <button onclick="changePassword()" style="background: var(--ifa-dark);">Update Password</button>
+                </div>
+            </div>
+
+            <!-- MAIN FRONT PAGE: TASK LIST -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: var(--ifa-maroon);">Office Tasks</h3>
+            </div>
+            
+            <div id="task-list"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>
